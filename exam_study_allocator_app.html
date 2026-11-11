@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>스마트 시험 공부시간 배분기 App</title>
+    
+    <!-- PWA & Mobile Web App Capabilities -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2563eb">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Pretendard Font -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.8/dist/web/static/pretendard.css" />
+
+    <style>
+        * {
+            font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        
+        /* Print Stylesheet */
+        @media print {
+            header, footer, .no-print {
+                display: none !important;
+            }
+            body {
+                background: white !important;
+                padding: 0 !important;
+            }
+            .print-full-width {
+                width: 100% !important;
+                max-width: 100% !important;
+                grid-column: span 12 / span 12 !important;
+            }
+            .card-box {
+                box-shadow: none !important;
+                border: 1px solid #e2e8f0 !important;
+                break-inside: avoid;
+            }
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col justify-between selection:bg-brand-500 selection:text-white pb-10">
+
+    <!-- Header / App Bar -->
+    <header class="bg-gradient-to-r from-brand-700 via-brand-600 to-indigo-700 text-white shadow-md sticky top-0 z-30 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white font-bold text-xl shadow-inner">
+                    <i class="fa-solid fa-square-calculator"></i>
+                </div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-bold leading-tight">시험 공부시간 배분기</h1>
+                    <p class="text-[11px] text-brand-100">계열별 가중치 & 취약도 기반 자동 플래너</p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2">
+                <button onclick="window.print()" title="결과 인쇄 및 PDF 저장" class="px-3 py-1.5 text-xs font-semibold bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl transition-all flex items-center gap-1.5 active:scale-95">
+                    <i class="fa-solid fa-print"></i>
+                    <span class="hidden sm:inline">PDF / 인쇄</span>
+                </button>
+                <button onclick="resetData()" title="전체 데이터 초기화" class="px-3 py-1.5 text-xs font-semibold bg-rose-500/20 hover:bg-rose-500/30 border border-rose-300/30 text-rose-100 rounded-xl transition-all flex items-center gap-1.5 active:scale-95">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span class="hidden sm:inline">초기화</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- App Main Layout -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-5 flex-grow w-full grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+        <!-- Left Panel: Input Controls & Subject List (lg: 5 cols) -->
+        <section class="lg:col-span-5 space-y-5 print-full-width">
+            
+            <!-- Setup Card -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4 card-box">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-xs font-bold">1</span>
+                        <h2 class="font-bold text-slate-900 text-sm sm:text-base">목표 계열 및 시험 일정</h2>
+                    </div>
+                    <span class="text-[11px] text-slate-400 font-medium">자동 연산 설정</span>
+                </div>
+
+                <div class="space-y-3.5">
+                    <!-- Target Major Dropdown -->
+                    <div>
+                        <label for="majorSelect" class="block text-xs font-semibold text-slate-700 mb-1.5">
+                            목표 학과 계열 <span class="text-brand-600 font-normal">(가중치 자동 적용)</span>
+                        </label>
+                        <select id="majorSelect" onchange="calculateAndSave()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                            <option value="engineering">공학계열 (수학/과학/컴퓨터 강조)</option>
+                            <option value="medicine">의학/자연과학계열 (생명과학/화학/수학 강조)</option>
+                            <option value="humanities">인문/사회계열 (국어/외국어/사회 강조)</option>
+                            <option value="business">경영/경제계열 (수학/사회/영어 강조)</option>
+                            <option value="arts">예체능/기타계열 (국어/영어/실기 강조)</option>
+                        </select>
+                    </div>
+
+                    <!-- Exam Start Date & Daily Hours -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label for="examDate" class="block text-xs font-semibold text-slate-700 mb-1.5">시험 시작일</label>
+                            <input type="date" id="examDate" onchange="calculateAndSave()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                        </div>
+                        <div>
+                            <label for="dailyHours" class="block text-xs font-semibold text-slate-700 mb-1.5">하루 순공 가능 시간 (시간)</label>
+                            <input type="number" id="dailyHours" min="0.5" max="24" step="0.5" value="6" oninput="calculateAndSave()" placeholder="예: 6" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- D-Day & Total Available Hours Card Display -->
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <div class="bg-slate-900 text-white p-3.5 rounded-xl flex flex-col justify-between">
+                        <span class="text-[11px] text-slate-400 font-medium">시험 D-Day</span>
+                        <div class="mt-1 flex items-baseline gap-1">
+                            <span id="dDayText" class="text-2xl font-black text-brand-400">D-0</span>
+                            <span id="dDaySubText" class="text-[11px] text-slate-400">일 남음</span>
+                        </div>
+                    </div>
+                    <div class="bg-gradient-to-br from-brand-600 to-indigo-600 text-white p-3.5 rounded-xl flex flex-col justify-between shadow-md shadow-brand-500/10">
+                        <span class="text-[11px] text-brand-100 font-medium">총 확보 가능 시간</span>
+                        <div class="mt-1 flex items-baseline gap-1">
+                            <span id="totalHoursText" class="text-2xl font-black">0</span>
+                            <span class="text-[11px] text-brand-100">시간</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Subject List & Dynamic Adding Card -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4 card-box">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-xs font-bold">2</span>
+                        <h2 class="font-bold text-slate-900 text-sm sm:text-base">과목별 정보 입력</h2>
+                    </div>
+                    <button onclick="addSubjectRow()" class="no-print px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center gap-1 active:scale-95">
+                        <i class="fa-solid fa-plus text-[10px]"></i> 과목 추가
+                    </button>
+                </div>
+
+                <!-- Inline Error Alert Box -->
+                <div id="errorBanner" class="hidden bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl p-3 flex items-start gap-2.5">
+                    <i class="fa-solid fa-triangle-exclamation text-rose-500 mt-0.5 text-sm shrink-0"></i>
+                    <div id="errorMessage" class="flex-1 leading-relaxed">입력값을 확인해 주세요.</div>
+                </div>
+
+                <!-- Scrollable Subject Input Rows -->
+                <div id="subjectsList" class="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                    <!-- Dynamic subject elements rendered via JS -->
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Panel: Analytics & Visual Charts (lg: 7 cols) -->
+        <section class="lg:col-span-7 space-y-5 print-full-width">
+
+            <!-- Chart 1: Total Allocated Hours per Subject -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 card-box">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-chart-simple text-brand-600"></i>
+                        <h3 class="font-bold text-slate-900 text-sm sm:text-base">과목별 총 배분 공부시간 (시간)</h3>
+                    </div>
+                    <span class="text-[11px] text-slate-400">우선순위 비율 기준</span>
+                </div>
+                <div class="relative h-60 sm:h-64 w-full">
+                    <canvas id="totalHoursChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: Daily Average Hours per Subject -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 card-box">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-clock text-indigo-600"></i>
+                        <h3 class="font-bold text-slate-900 text-sm sm:text-base">과목별 하루 평균 권장 공부시간 (시간/일)</h3>
+                    </div>
+                    <span class="text-[11px] text-slate-400">매일 스케줄 가이드</span>
+                </div>
+                <div class="relative h-56 sm:h-60 w-full">
+                    <canvas id="dailyHoursChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Detailed Priority Breakdown Table -->
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 card-box">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-emerald-600"></i>
+                        <h3 class="font-bold text-slate-900 text-sm sm:text-base">산출 산식 및 상세 시간배분표</h3>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-700">
+                        <thead class="bg-slate-50 text-slate-500 font-semibold uppercase border-b border-slate-200">
+                            <tr>
+                                <th class="py-2.5 px-3">과목명</th>
+                                <th class="py-2.5 px-3 text-center">지필 반영비율</th>
+                                <th class="py-2.5 px-3 text-center">계열 가중치</th>
+                                <th class="py-2.5 px-3 text-center">취약도 점수</th>
+                                <th class="py-2.5 px-3 text-center">우선순위</th>
+                                <th class="py-2.5 px-3 text-right">총 배분</th>
+                                <th class="py-2.5 px-3 text-right">하루 평균</th>
+                            </tr>
+                        </thead>
+                        <tbody id="breakdownTableBody" class="divide-y divide-slate-100">
+                            <!-- Dynamic Table Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-8 text-center text-xs text-slate-400 py-4 border-t border-slate-200 max-w-7xl mx-auto px-4 w-full no-print">
+        <p>스마트 시험 공부시간 배분 계산기 &bull; 목표 학과별 가중치 및 취약도 가중 알고리즘 적용</p>
+    </footer>
+
+    <!-- Logic Script -->
+    <script>
+        // Department Category Weightings Table
+        const majorWeights = {
+            engineering: { '수학': 1.5, '과학/과탐': 1.4, '영어': 1.0, '국어': 0.8, '한국사': 0.8, '사회/사탐': 0.5, '기타': 1.0 },
+            medicine:    { '과학/과탐': 1.5, '수학': 1.5, '영어': 1.1, '국어': 1.0, '한국사': 0.8, '사회/사탐': 0.5, '기타': 1.0 },
+            humanities:  { '국어': 1.4, '사회/사탐': 1.4, '영어': 1.3, '한국사': 1.1, '수학': 0.8, '과학/과탐': 0.6, '기타': 1.0 },
+            business:    { '수학': 1.4, '사회/사탐': 1.3, '국어': 1.2, '영어': 1.2, '한국사': 1.0, '과학/과탐': 0.6, '기타': 1.0 },
+            arts:        { '국어': 1.3, '영어': 1.3, '사회/사탐': 1.1, '한국사': 1.0, '수학': 0.6, '과학/과탐': 0.5, '기타': 1.0 }
+        };
+
+        const subjectCategories = ['수학', '과학/과탐', '국어', '영어', '사회/사탐', '한국사', '기타'];
+
+        // Initial Sample Data
+        let subjects = [
+            { id: 101, name: '수학 I', category: '수학', paperWeight: 60, confidence: 2 },
+            { id: 102, name: '통합과학', category: '과학/과탐', paperWeight: 60, confidence: 2 },
+            { id: 103, name: '국어', category: '국어', paperWeight: 50, confidence: 3 },
+            { id: 104, name: '영어', category: '영어', paperWeight: 50, confidence: 4 }
+        ];
+
+        let totalChartInstance = null;
+        let dailyChartInstance = null;
+
+        // Initialize on DOM load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Set default date to +14 days from today
+            const defaultDate = new Date();
+            defaultDate.setDate(defaultDate.getDate() + 14);
+            document.getElementById('examDate').value = defaultDate.toISOString().split('T')[0];
+
+            loadSavedData();
+            renderSubjectRows();
+            calculateAndSave();
+        });
+
+        // Load persisted data
+        function loadSavedData() {
+            try {
+                const saved = localStorage.getItem('study_allocator_app_data');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.majorSelect) document.getElementById('majorSelect').value = parsed.majorSelect;
+                    if (parsed.examDate) document.getElementById('examDate').value = parsed.examDate;
+                    if (parsed.dailyHours) document.getElementById('dailyHours').value = parsed.dailyHours;
+                    if (parsed.subjects && Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
+                        subjects = parsed.subjects;
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load saved state:", e);
+            }
+        }
+
+        // Save data to localStorage
+        function saveData() {
+            const data = {
+                majorSelect: document.getElementById('majorSelect').value,
+                examDate: document.getElementById('examDate').value,
+                dailyHours: document.getElementById('dailyHours').value,
+                subjects: subjects
+            };
+            localStorage.setItem('study_allocator_app_data', JSON.stringify(data));
+        }
+
+        // Reset all inputs
+        function resetData() {
+            if (confirm("모든 설정과 과목 정보를 초기화하시겠습니까?")) {
+                localStorage.removeItem('study_allocator_app_data');
+                document.getElementById('majorSelect').value = 'engineering';
+                const defaultDate = new Date();
+                defaultDate.setDate(defaultDate.getDate() + 14);
+                document.getElementById('examDate').value = defaultDate.toISOString().split('T')[0];
+                document.getElementById('dailyHours').value = '6';
+
+                subjects = [
+                    { id: Date.now() + 1, name: '수학 I', category: '수학', paperWeight: 60, confidence: 2 },
+                    { id: Date.now() + 2, name: '통합과학', category: '과학/과탐', paperWeight: 60, confidence: 2 },
+                    { id: Date.now() + 3, name: '국어', category: '국어', paperWeight: 50, confidence: 3 },
+                    { id: Date.now() + 4, name: '영어', category: '영어', paperWeight: 50, confidence: 4 }
+                ];
+
+                renderSubjectRows();
+                calculateAndSave();
+            }
+        }
+
+        // Add row
+        function addSubjectRow() {
+            subjects.push({
+                id: Date.now(),
+                name: '새 과목',
+                category: '기타',
+                paperWeight: 50,
+                confidence: 3
+            });
+            renderSubjectRows();
+            calculateAndSave();
+        }
+
+        // Remove row
+        function removeSubjectRow(id) {
+            if (subjects.length <= 1) {
+                showError("최소 1개 이상의 과목이 필요합니다.");
+                return;
+            }
+            subjects = subjects.filter(s => s.id !== id);
+            renderSubjectRows();
+            calculateAndSave();
+        }
+
+        // Render UI Input Rows
+        function renderSubjectRows() {
+            const container = document.getElementById('subjectsList');
+            container.innerHTML = '';
+
+            subjects.forEach((sub, index) => {
+                const card = document.createElement('div');
+                card.className = "bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5 hover:border-slate-300 transition-all";
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold flex items-center justify-center shrink-0">${index + 1}</span>
+                        <input type="text" value="${escapeHtml(sub.name)}" oninput="updateSubject(${sub.id}, 'name', this.value)" placeholder="과목명 입력" class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <select onchange="updateSubject(${sub.id}, 'category', this.value)" class="bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 shrink-0">
+                            ${subjectCategories.map(cat => `<option value="${cat}" ${sub.category === cat ? 'selected' : ''}>${cat}</option>`).join('')}
+                        </select>
+                        <button onclick="removeSubjectRow(${sub.id})" class="no-print text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-all shrink-0" title="삭제">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2.5 pt-1 border-t border-slate-200/60 text-xs">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-[11px] font-medium text-slate-600">지필 반영비율</label>
+                                <span class="font-bold text-brand-600">${sub.paperWeight}%</span>
+                            </div>
+                            <input type="number" min="0" max="100" value="${sub.paperWeight}" oninput="updateSubject(${sub.id}, 'paperWeight', parseFloat(this.value) || 0)" class="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="text-[11px] font-medium text-slate-600">자신감 (1=취약, 5=높음)</label>
+                                <span class="font-bold text-indigo-600">${sub.confidence}점</span>
+                            </div>
+                            <select onchange="updateSubject(${sub.id}, 'confidence', parseInt(this.value))" class="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                                <option value="1" ${sub.confidence === 1 ? 'selected' : ''}>1점 (매우 취약)</option>
+                                <option value="2" ${sub.confidence === 2 ? 'selected' : ''}>2점 (다소 부족)</option>
+                                <option value="3" ${sub.confidence === 3 ? 'selected' : ''}>3점 (보통)</option>
+                                <option value="4" ${sub.confidence === 4 ? 'selected' : ''}>4점 (자신 있음)</option>
+                                <option value="5" ${sub.confidence === 5 ? 'selected' : ''}>5점 (완벽 이해)</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateSubject(id, field, value) {
+            const sub = subjects.find(s => s.id === id);
+            if (sub) {
+                sub[field] = value;
+                calculateAndSave();
+            }
+        }
+
+        // Calculation Engine
+        function calculateAndSave() {
+            clearError();
+
+            const majorKey = document.getElementById('majorSelect').value;
+            const examDateVal = document.getElementById('examDate').value;
+            const dailyHoursVal = parseFloat(document.getElementById('dailyHours').value);
+
+            // Validation
+            if (!examDateVal) {
+                showError("시험 시작일자를 선택해 주세요.");
+                return;
+            }
+            if (isNaN(dailyHoursVal) || dailyHoursVal <= 0 || dailyHoursVal > 24) {
+                showError("하루 공부 시간은 0.5시간 ~ 24시간 사이여야 합니다.");
+                return;
+            }
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const target = new Date(examDateVal);
+            target.setHours(0,0,0,0);
+
+            const diffTime = target.getTime() - today.getTime();
+            const daysDiff = Math.ceil(diffTime / (1000 * 3600 * 24));
+
+            if (daysDiff < 0) {
+                showError("시험 시작일은 오늘 이후 날짜여야 합니다.");
+                document.getElementById('dDayText').textContent = "D-종료";
+                document.getElementById('dDaySubText').textContent = "기한 경과";
+                document.getElementById('totalHoursText').textContent = "0";
+                return;
+            }
+
+            const totalAvailableHours = daysDiff * dailyHoursVal;
+            document.getElementById('dDayText').textContent = `D-${daysDiff}`;
+            document.getElementById('dDaySubText').textContent = `${daysDiff}일 남음`;
+            document.getElementById('totalHoursText').textContent = totalAvailableHours.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+
+            // Subject inputs validation
+            const currentMajorWeights = majorWeights[majorKey] || majorWeights.engineering;
+            let invalidInput = false;
+
+            subjects.forEach((s, idx) => {
+                if (!s.name || s.name.trim() === '') {
+                    showError(`${idx + 1}번째 과목의 이름을 입력해 주세요.`);
+                    invalidInput = true;
+                }
+                if (s.paperWeight < 0 || s.paperWeight > 100) {
+                    showError(`'${s.name}' 지필 반영비율은 0% ~ 100% 사이여야 합니다.`);
+                    invalidInput = true;
+                }
+            });
+
+            if (invalidInput) return;
+
+            // Priority Calculation Factor
+            // Confidence scale inverse (1=very weak -> factor 1.8, 5=confident -> factor 0.6)
+            const vulnerabilityFactors = { 1: 1.8, 2: 1.5, 3: 1.2, 4: 0.9, 5: 0.6 };
+
+            let totalPrioritySum = 0;
+            const calculatedList = subjects.map(sub => {
+                const weightRatio = (sub.paperWeight || 0) / 100;
+                const majorW = currentMajorWeights[sub.category] || 1.0;
+                const vulnF = vulnerabilityFactors[sub.confidence] || 1.2;
+
+                const priorityScore = weightRatio * majorW * vulnF;
+                totalPrioritySum += priorityScore;
+
+                return {
+                    ...sub,
+                    majorW,
+                    vulnF,
+                    priorityScore
+                };
+            });
+
+            // Proportional allocation
+            const processed = calculatedList.map(item => {
+                const ratio = totalPrioritySum > 0 ? (item.priorityScore / totalPrioritySum) : (1 / calculatedList.length);
+                const allocatedTotalHours = totalAvailableHours * ratio;
+                const allocatedDailyHours = daysDiff > 0 ? (allocatedTotalHours / daysDiff) : 0;
+
+                return {
+                    ...item,
+                    allocatedTotalHours,
+                    allocatedDailyHours
+                };
+            });
+
+            renderCharts(processed);
+            renderTable(processed);
+            saveData();
+        }
+
+        function renderTable(list) {
+            const tbody = document.getElementById('breakdownTableBody');
+            tbody.innerHTML = '';
+
+            list.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3 font-bold text-slate-800">${escapeHtml(item.name)} <span class="text-[10px] text-slate-400 font-normal">(${item.category})</span></td>
+                    <td class="py-2.5 px-3 text-center text-slate-600">${item.paperWeight}%</td>
+                    <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-md bg-brand-50 text-brand-700 font-semibold text-[11px]">${item.majorW.toFixed(1)}</span></td>
+                    <td class="py-2.5 px-3 text-center text-slate-600">${item.confidence}점 <span class="text-[10px] text-slate-400">(${item.vulnF.toFixed(1)})</span></td>
+                    <td class="py-2.5 px-3 text-center font-semibold text-slate-800">${item.priorityScore.toFixed(2)}</td>
+                    <td class="py-2.5 px-3 text-right font-extrabold text-brand-600">${item.allocatedTotalHours.toFixed(1)}시간</td>
+                    <td class="py-2.5 px-3 text-right font-extrabold text-indigo-600">${item.allocatedDailyHours.toFixed(1)}시간/일</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderCharts(list) {
+            const labels = list.map(item => item.name);
+            const totalHours = list.map(item => Number(item.allocatedTotalHours.toFixed(1)));
+            const dailyHours = list.map(item => Number(item.allocatedDailyHours.toFixed(1)));
+
+            const chartColors = [
+                '#3b82f6', '#6366f1', '#10b981', '#f59e0b', '#ec4899', '#0ea5e9', '#8b5cf6'
+            ];
+
+            // Chart 1: Total
+            const ctxTotal = document.getElementById('totalHoursChart').getContext('2d');
+            if (totalChartInstance) totalChartInstance.destroy();
+
+            totalChartInstance = new Chart(ctxTotal, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '총 배분 시간 (시간)',
+                        data: totalHours,
+                        backgroundColor: chartColors.slice(0, labels.length),
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // Chart 2: Daily Average
+            const ctxDaily = document.getElementById('dailyHoursChart').getContext('2d');
+            if (dailyChartInstance) dailyChartInstance.destroy();
+
+            dailyChartInstance = new Chart(ctxDaily, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '하루 권장 공부시간 (시간/일)',
+                        data: dailyHours,
+                        backgroundColor: '#6366f1',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function showError(msg) {
+            const banner = document.getElementById('errorBanner');
+            document.getElementById('errorMessage').textContent = msg;
+            banner.classList.remove('hidden');
+        }
+
+        function clearError() {
+            document.getElementById('errorBanner').classList.add('hidden');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
